@@ -1,0 +1,39 @@
+name: Deploy Azure IaC + WebApp
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Infrastructure (Bicep)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "${{ secrets.AZURE_RG }}" \
+              --template-file "infra/main.bicep" \
+              --parameters appName="${{ secrets.AZURE_WEBAPP_NAME }}"
+
+      - name: Zip Static Site
+        run: |
+          cd app
+          zip -r ../site.zip .
+
+      - name: Deploy WebApp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: site.zip
