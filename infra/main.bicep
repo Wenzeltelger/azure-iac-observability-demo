@@ -162,7 +162,7 @@ var kvSecretsUserRoleDefinitionId = subscriptionResourceId(
   '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
 )
 
-
+//
 
 output webAppName string = webApp.name
 output appInsightsName string = appInsights.name
