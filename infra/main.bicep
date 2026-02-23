@@ -1,7 +1,7 @@
 @description('Location for all resources')
 param location string = resourceGroup().location
 
-@description('Web App name')
+@description('Web App name (frontend)')
 param appName string
 
 @description('Tags object')
@@ -10,6 +10,10 @@ param tags object = {
   project: 'azure-iac-observability-demo'
 }
 
+@description('Name of the Key Vault secret to read')
+param secretName string = 'DemoSecret'
+
+// ---------- Frontend (App Service) ----------
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: '${appName}-plan'
   location: location
@@ -55,5 +59,129 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
+// ---------- Key Vault ----------
+var kvName = 'kv${uniqueString(subscription().id, resourceGroup().id, appName)}'
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: kvName
+  location: location
+  tags: tags
+  properties: {
+    tenantId: tenant().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    // RBAC-based permissions (recommended)
+    enableRbacAuthorization: true
+
+    // For demo simplicity. In “pro hardening” we can restrict networks later.
+    publicNetworkAccess: 'Enabled'
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+  }
+}
+
+// ---------- Function App prerequisites ----------
+var storageName = toLower('st${uniqueString(subscription().id, resourceGroup().id, appName)}')
+
+resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: storageName
+  location: location
+  tags: tags
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    minimumTlsVersion: 'TLS1_2'
+    allowBlobPublicAccess: false
+  }
+}
+
+resource storageKeys 'Microsoft.Storage/storageAccounts/listKeys@2023-01-01' = {
+  name: storage.name
+}
+
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storageKeys.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+
+// Consumption plan for Functions
+var funcPlanName = 'aspfunc-${uniqueString(resourceGroup().id, appName)}'
+
+resource functionPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: funcPlanName
+  location: location
+  sku: {
+    name: 'Y1'
+    tier: 'Dynamic'
+  }
+  tags: tags
+}
+
+var functionAppName = 'func${uniqueString(subscription().id, resourceGroup().id, appName)}'
+
+resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: functionAppName
+  location: location
+  kind: 'functionapp'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  tags: tags
+  properties: {
+    serverFarmId: functionPlan.id
+    siteConfig: {
+      appSettings: [
+        // Required for Functions
+        {
+          name: 'AzureWebJobsStorage'
+          value: storageConnectionString
+        }
+        {
+          name: 'FUNCTIONS_EXTENSION_VERSION'
+          value: '~4'
+        }
+        {
+          name: 'FUNCTIONS_WORKER_RUNTIME'
+          value: 'dotnet-isolated'
+        }
+
+        // Key Vault settings consumed by your code
+        {
+          name: 'KEYVAULT_URI'
+          value: keyVault.properties.vaultUri
+        }
+        {
+          name: 'SECRET_NAME'
+          value: secretName
+        }
+      ]
+    }
+    httpsOnly: true
+  }
+}
+
+// ---------- RBAC: Function MI can read secrets from Key Vault ----------
+var kvSecretsUserRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+)
+
+resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, functionApp.identity.principalId, kvSecretsUserRoleDefinitionId)
+  scope: keyVault
+  properties: {
+    roleDefinitionId: kvSecretsUserRoleDefinitionId
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ---------- Outputs ----------
 output webAppName string = webApp.name
 output appInsightsName string = appInsights.name
+output keyVaultName string = keyVault.name
+output functionAppName string = functionApp.name
+output functionBaseUrl string = 'https://${functionApp.name}.azurewebsites.net'
