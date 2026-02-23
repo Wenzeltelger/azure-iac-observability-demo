@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cloud Observability + IaC Demo</title>
+  <meta name="description" content="Demo de Infraestructura como Código y Observabilidad en Azure." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">☁️</span>
+      <div>
+        <div class="brand-title">Azure Cloud Demo</div>
+        <div class="brand-subtitle">IaC + Observability</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="#overview">Overview</a>
+      <a href="#architecture">Arquitectura</a>
+      <a href="#kpis">KPIs</a>
+      <a href="#alerts">Alertas</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section id="overview" class="hero">
+      <div class="hero-text">
+        <h1>Infraestructura como Código + Observabilidad en Azure</h1>
+        <p class="lead">
+          Esta página vive en un <b>Azure App Service</b> creado vía <b>Bicep</b>.
+          El monitoreo y alertas se gestionan con <b>Application Insights</b> y <b>Azure Monitor</b>.
+        </p>
+
+        <div class="pill-row">
+          <span class="pill">Bicep</span>
+          <span class="pill">App Service</span>
+          <span class="pill">Application Insights</span>
+          <span class="pill">Azure Monitor</span>
+          <span class="pill">Alerts</span>
+          <span class="pill">Key Vault</span>
+        </div>
+
+        <div class="cta-row">
+          <button class="btn" id="btnPing">Generar tráfico (Ping)</button>
+          <a class="btn btn-secondary" href="#architecture">Ver arquitectura</a>
+        </div>
+
+        <p class="hint">
+          Tip: presiona “Generar tráfico” varias veces para ver requests en <b>Live Metrics</b>.
+        </p>
+      </div>
+
+      <div class="hero-card">
+        <div class="card-title">Estado del entorno</div>
+        <div class="grid">
+          <div class="stat">
+            <div class="stat-label">Environment</div>
+            <div class="stat-value">dev</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Region</div>
+            <div class="stat-value">centralus</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">IaC</div>
+            <div class="stat-value">Bicep</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Telemetry</div>
+            <div class="stat-value">Enabled</div>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <span class="dot ok"></span>
+          <span id="healthText">Health: OK</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture" class="section">
+      <h2>Arquitectura</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>Infra (Bicep)</h3>
+          <ul>
+            <li>Resource Group</li>
+            <li>App Service Plan (F1)</li>
+            <li>App Service (Web App)</li>
+            <li>Application Insights</li>
+            <li>Key Vault (secrets)</li>
+            <li>Tags (owner/env/project)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Observability</h3>
+          <ul>
+            <li>Live Metrics (requests, latency)</li>
+            <li>Logs/Queries</li>
+            <li>Dashboard con métricas clave</li>
+            <li>Alert rules + Action Group (email)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>DevOps</h3>
+          <ul>
+            <li>Publicación automatizable (Local Git / GitHub)</li>
+            <li>Reproducible: 1 comando deploy IaC</li>
+            <li>Base lista para pipeline CI/CD</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="kpis" class="section">
+      <h2>KPIs que se monitorean</h2>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-title">Requests</div>
+          <div class="kpi-desc">Volumen por minuto / tendencias.</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-title">Latency</div>
+          <div class="kpi-desc">Response time promedio y p95.</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-title">Failures</div>
+          <div class="kpi-desc">Errores 4xx/5xx.</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-title">Availability</div>
+          <div class="kpi-desc">Disponibilidad y health checks.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="alerts" class="section">
+      <h2>Alertas (ejemplo)</h2>
+      <div class="alert-box">
+        <div class="alert-icon">⚠️</div>
+        <div>
+          <div class="alert-title">alert-high-requests-demo</div>
+          <div class="alert-desc">
+            Se dispara si el número de requests supera el umbral definido en una ventana de 5 minutos.
+            Notifica por email vía Action Group.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div>© 2026 — Demo Cloud/Infra/DevOps</div>
+      <div class="small">Hecho con HTML + CSS (publicado desde local)</div>
+    </footer>
+  </main>
+
+  <script>
+    // Genera tráfico (requests) hacia un recurso público para ver actividad.
+    // OJO: esto NO garantiza telemetría de dependencias en App Insights para sitio estático,
+    // pero sí genera requests de página al recargar/pingar.
+    document.getElementById('btnPing').addEventListener('click', async () => {
+      try {
+        // petición simple para "actividad"
+        await fetch('https://www.microsoft.com', { mode: 'no-cors' });
+        const el = document.getElementById('healthText');
+        el.textContent = 'Health: OK (ping sent)';
+        setTimeout(()=> el.textContent = 'Health: OK', 1500);
+      } catch {
+        const el = document.getElementById('healthText');
+        el.textContent = 'Health: Degraded';
+        setTimeout(()=> el.textContent = 'Health: OK', 1500);
+      }
+    });
+  </script>
+</body>
+</html>
