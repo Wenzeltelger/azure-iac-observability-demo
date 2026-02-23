@@ -13,7 +13,6 @@ param tags object = {
 @description('Name of the Key Vault secret to read')
 param secretName string = 'DemoSecret'
 
-// ---------- Frontend (App Service) ----------
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: '${appName}-plan'
   location: location
@@ -59,7 +58,6 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
-// ---------- Key Vault ----------
 var kvName = 'kv${uniqueString(subscription().id, resourceGroup().id, appName)}'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -72,6 +70,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       family: 'A'
       name: 'standard'
     }
+
     // RBAC-based permissions (recommended)
     enableRbacAuthorization: true
 
@@ -84,7 +83,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-// ---------- Function App prerequisites ----------
 var storageName = toLower('st${uniqueString(subscription().id, resourceGroup().id, appName)}')
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
@@ -101,13 +99,9 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   }
 }
 
-resource storageKeys 'Microsoft.Storage/storageAccounts/listKeys@2023-01-01' = {
-  name: storage.name
-}
-
+var storageKeys = listKeys(storage.id, '2023-01-01')
 var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storageKeys.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 
-// Consumption plan for Functions
 var funcPlanName = 'aspfunc-${uniqueString(resourceGroup().id, appName)}'
 
 resource functionPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -163,23 +157,23 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
-// ---------- RBAC: Function MI can read secrets from Key Vault ----------
+var functionPrincipalId = reference(functionApp.id, '2023-01-01', 'Full').identity.principalId
+
 var kvSecretsUserRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
 )
 
 resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, functionApp.identity.principalId, kvSecretsUserRoleDefinitionId)
+  name: guid(keyVault.id, functionPrincipalId, kvSecretsUserRoleDefinitionId)
   scope: keyVault
   properties: {
     roleDefinitionId: kvSecretsUserRoleDefinitionId
-    principalId: functionApp.identity.principalId
+    principalId: functionPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// ---------- Outputs ----------
 output webAppName string = webApp.name
 output appInsightsName string = appInsights.name
 output keyVaultName string = keyVault.name
