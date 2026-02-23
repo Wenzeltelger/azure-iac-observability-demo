@@ -157,12 +157,12 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   }
 }
 
-var functionPrincipalId = reference(functionApp.id, '2023-01-01', 'Full').identity.principalId
-
 var kvSecretsUserRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
 )
+
+var functionPrincipalId = reference(functionApp.id, '2023-01-01', 'Full').identity.principalId
 
 resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, functionPrincipalId, kvSecretsUserRoleDefinitionId)
