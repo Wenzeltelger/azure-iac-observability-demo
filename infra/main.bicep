@@ -162,14 +162,13 @@ var kvSecretsUserRoleDefinitionId = subscriptionResourceId(
   '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
 )
 
-var functionPrincipalId = reference(functionApp.id, '2023-01-01', 'Full').identity.principalId
-
 resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, functionPrincipalId, kvSecretsUserRoleDefinitionId)
+  // name debe ser calculable al inicio -> NO uses principalId ni reference() aquí
+  name: guid(keyVault.id, 'kv-secrets-user', functionApp.name)
   scope: keyVault
   properties: {
     roleDefinitionId: kvSecretsUserRoleDefinitionId
-    principalId: functionPrincipalId
+    principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
